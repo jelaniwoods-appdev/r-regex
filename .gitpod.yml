@@ -1,1 +1,2 @@
-image: jelaniwoods/tidyverse
+image:
+  file: jelaniwoods/tidyverse
