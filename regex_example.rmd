@@ -1,0 +1,80 @@
+---
+title: "An Example of Regular Expressions"
+author: "Jingyu Zhang"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+    pdf_document: default
+    html_document:
+    df_print: paged
+header-includes:
+- \usepackage{setspace}
+- \usepackage{color}
+- \usepackage{amssymb}
+- \usepackage{longtable}
+- \usepackage{bbm}
+- \DeclareMathOperator{\E}{\mathbb{E}}
+fontsize: 11pt
+classoption: vertical
+---
+
+
+In this example, we will parse text data with `regular expressions` using `R`.
+
+We have a small sample of earnings conference calls data. First, load the data set and preview.
+
+```{r data, echo=TRUE, warning=FALSE}
+library(dplyr, warn.conflicts = FALSE)
+library(stringr)
+library(tidyr)
+library(kableExtra, warn.conflicts = FALSE)
+
+calls_500 <- 
+    read.csv("~/call_500.csv") %>% 
+    tibble()
+
+calls_500 %>% 
+    head(5) %>% 
+    kable() %>% 
+    kable_styling(full_width = TRUE)
+```
+
+
+As you can see, we have two time columns, `last_update` and `start_date`. However, neither of them can reflect the quarter of the conference call. To get the correct *quarter* and *year*, we need to break down column `event title`. Another important dimension `event_title` has is `company name`. The following codes extract `year`, `quarter`, `company name`, and `description` of the event from `event_title`. When developing regular expressions, we need to manually read the data and try to find the trend. You can draw a random subset and evaluate the performance of your regular expressions.
+
+
+```{r regex, echo=TRUE, warning=FALSE}
+
+# Regular expressions
+
+regex <- "(?:Earnings(?: Conference Call)?|Financial and Operating Results|
+            Financial Results Call|"
+regex <- paste0(regex, "Results Conference Call|Analyst Meeting)")
+regex <- paste0("^(.*) (", regex, ")")
+
+qtr_regex <- "(Preliminary Half Year|Full Year|Q[1-4])"
+year_regex <- "(20[0-9]{2}(?:-[0-9]{2}|/20[0-9]{2})?)"
+period_regex <- paste0("^", qtr_regex, " ", year_regex," (.*)")
+
+calls_500 %>% 
+    rowwise() %>% 
+    mutate(fisc_qtr_data = str_extract(event_title, period_regex)) %>% 
+    mutate(fisc_qtr_data = str_match(event_title, period_regex)) %>% 
+    mutate(event_co_name = fisc_qtr_data[4]) %>% 
+    mutate(qtr1 = fisc_qtr_data[2], 
+           qtr2 = fisc_qtr_data[3]) %>% 
+    unite(fisc_qtr_data, c("qtr1", "qtr2"), sep = " ") %>% 
+    mutate(event_co_name = str_extract(event_co_name, regex)) %>%
+    mutate(event_co_name = str_match(event_co_name, regex)) %>%
+    rowwise() %>% 
+    mutate(event_coname = event_co_name[2]) %>% 
+    mutate(event_desc = event_co_name[3]) %>% 
+    select(file_name, event_title, fisc_qtr_data, 
+           event_coname, event_desc) %>% 
+    head(20) %>% 
+    kable(longtable = TRUE, caption = "Top 20 Lines of Final Results") %>% 
+    kable_styling(full_width = TRUE)
+```
+
+Note that our regular expressions fail in some files, such as `3803073_T`, `1920371_T`, and `1400229_T`. You should pay attention to outliers like these and adjust your regular expressions if you would like to pick up them. For this experiment, we are fine to filter them out since we focus on formal quarterly/semiannually conference calls.
+
+
